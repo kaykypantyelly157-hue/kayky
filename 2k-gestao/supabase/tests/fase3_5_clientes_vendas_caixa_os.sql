@@ -1,4 +1,4 @@
--- Testes transacionais das fases 3-5. Usa um admin ativo existente e termina em ROLLBACK.
+-- Testes transacionais das fases 3-5. Usa um admin e um technician ativos e termina em ROLLBACK.
 -- Rode em ambiente descartável com:
 -- psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/fase3_5_clientes_vendas_caixa_os.sql
 begin;
@@ -13,6 +13,7 @@ end $$;
 do $$
 declare
   v_admin uuid;
+  v_technician uuid;
   v_customer uuid;
   v_product uuid;
   v_sale jsonb;
@@ -36,6 +37,8 @@ declare
 begin
   select id into v_admin from public.profiles where role = 'admin' and active limit 1;
   if v_admin is null then raise exception 'FALHOU PREPARAÇÃO: nenhum administrador ativo.'; end if;
+  select id into v_technician from public.profiles where role = 'technician' and active limit 1;
+  if v_technician is null then raise exception 'FALHOU PREPARAÇÃO: nenhum técnico ativo.'; end if;
   perform set_config('test.admin', v_admin::text, true);
 
   insert into public.customers (name, phone, cpf, email)
@@ -150,13 +153,12 @@ begin
   raise notice 'OK F5 cliente obrigatório, estados, peças e histórico imutável';
 
   perform pg_temp.as_user(v_admin);
-  v_order2 := public.create_service_order(v_customer, 'Aparelho atribuído', 'Modelo teste', 'Tela', v_admin, 0, null);
+  v_order2 := public.create_service_order(v_customer, 'Aparelho atribuído', 'Modelo teste', 'Tela', v_technician, 0, null);
   v_order2_id := (v_order2->'order'->>'id')::uuid;
   v_order3 := public.create_service_order(v_customer, 'Aparelho não atribuído', 'Modelo teste', 'Bateria', null, 0, null);
   v_order3_id := (v_order3->'order'->>'id')::uuid;
   execute 'reset role';
-  update public.profiles set role = 'technician' where id = v_admin;
-  perform pg_temp.as_user(v_admin);
+  perform pg_temp.as_user(v_technician);
   select count(*) into v_count from public.sales;
   if v_count <> 0 then raise exception 'FALHOU RBAC: technician leu vendas.'; end if;
   select count(*) into v_count from public.cash_sessions;
@@ -170,7 +172,6 @@ begin
   v_failed := false;
   begin perform public.change_service_order_status(v_order2_id, 'cancelado', 'cancelamento não autorizado'); exception when others then v_failed := true; end;
   execute 'reset role';
-  update public.profiles set role = 'admin' where id = v_admin;
   if not v_failed then raise exception 'FALHOU RBAC: technician cancelou OS.'; end if;
   raise notice 'OK RBAC technician sem dados financeiros; consulta OS e opera apenas a atribuída';
 

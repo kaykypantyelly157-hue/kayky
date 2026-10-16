@@ -89,6 +89,43 @@ if [[ "$(jq -r '.id' <<<"$authenticated_user")" != "$admin_id" ]]; then
 fi
 echo "PASS: Auth rejects invalid credentials and establishes a valid session"
 
+technician_email="technician@2k-gestao.test"
+technician_password="$(openssl rand -hex 24)"
+technician_response="$(curl --fail-with-body --silent --show-error \
+  --request POST "$API_URL/auth/v1/admin/users" \
+  --header "apikey: $SERVICE_ROLE_KEY" \
+  --header "Authorization: Bearer $SERVICE_ROLE_KEY" \
+  --header "Content-Type: application/json" \
+  --data "$(jq -n --arg email "$technician_email" --arg password "$technician_password" \
+    '{email: $email, password: $password, email_confirm: true}')")"
+technician_id="$(jq -r '.id // empty' <<<"$technician_response")"
+if [[ -z "$technician_id" ]]; then
+  echo "Auth admin API did not return a technician user id" >&2
+  exit 1
+fi
+technician_login="$(curl --fail-with-body --silent --show-error \
+  --request POST "$API_URL/auth/v1/token?grant_type=password" \
+  --header "apikey: $ANON_KEY" \
+  --header "Content-Type: application/json" \
+  --data "$(jq -n --arg email "$technician_email" --arg password "$technician_password" \
+    '{email: $email, password: $password}')")"
+technician_token="$(jq -r '.access_token // empty' <<<"$technician_login")"
+if [[ -z "$technician_token" || "$(jq -r '.user.id // empty' <<<"$technician_login")" != "$technician_id" ]]; then
+  echo "Technician login did not establish the expected session" >&2
+  exit 1
+fi
+technician_profile="$(curl --fail-with-body --silent --show-error \
+  "$API_URL/rest/v1/profiles?select=id,role,active&id=eq.$technician_id" \
+  --header "apikey: $ANON_KEY" \
+  --header "Authorization: Bearer $technician_token")"
+if ! jq -e --arg id "$technician_id" \
+  'length == 1 and .[0].id == $id and .[0].role == "technician" and .[0].active == true' \
+  <<<"$technician_profile" >/dev/null; then
+  echo "New technician profile is missing, inactive, or has the wrong role" >&2
+  exit 1
+fi
+echo "PASS: technician account login and self-profile RLS"
+
 missing_profile_id="00000000-0000-0000-0000-000000000001"
 psql "$DB_URL" -X -v ON_ERROR_STOP=1 -v missing_profile_id="$missing_profile_id" <<'SQL'
 begin;
@@ -219,6 +256,26 @@ if [[ "$concurrency_result" != "5|3|1|1|1|5" ]]; then
   exit 1
 fi
 echo "PASS: concurrent adds serialize, one competing removal is rejected, and stock history remains consistent"
+
+technician_stock_status="$(curl --silent --show-error --output "$tmp_dir/technician-stock.json" --write-out '%{http_code}' \
+  --request POST "$API_URL/rest/v1/rpc/add_stock" \
+  --header "apikey: $ANON_KEY" \
+  --header "Authorization: Bearer $technician_token" \
+  --header "Content-Type: application/json" \
+  --data "$(jq -n --arg id "$product_id" \
+    '{p_product_id: $id, p_quantity: 1, p_reason: "unauthorized technician CI test"}')")"
+if [[ "$technician_stock_status" == "200" ]]; then
+  echo "Technician unexpectedly changed stock through the REST API" >&2
+  exit 1
+fi
+technician_stock_after="$(psql "$DB_URL" -X -A -t -v ON_ERROR_STOP=1 \
+  -v product_id="$product_id" \
+  -c "select current_stock from public.products where id = :'product_id'::uuid")"
+if [[ "$technician_stock_after" != "5" ]]; then
+  echo "Unauthorized technician request changed stock to $technician_stock_after" >&2
+  exit 1
+fi
+echo "PASS: technician REST request cannot mutate stock"
 
 cash_race_sku="CI-CASH-RACE-$(openssl rand -hex 6)"
 cash_race_product_id="$(psql "$DB_URL" -X -A -t -v ON_ERROR_STOP=1 -v product_sku="$cash_race_sku" -c \

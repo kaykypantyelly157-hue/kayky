@@ -79,7 +79,7 @@ O workflow GitHub Actions executa a mesma suíte em Supabase efêmero por PR e p
 
 ### Testes de banco
 
-Os scripts usam transação e `ROLLBACK`. Execute apenas em instância de teste com usuário admin ativo:
+Os scripts usam transação e `ROLLBACK`. O teste Fases 3–5 precisa de pelo menos um profile `admin` e um `technician` ativos; execute apenas em instância de teste:
 
 ```text
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/fase2_estoque.sql

@@ -1,0 +1,29 @@
+{
+  "name": "2K Gestão",
+  "short_name": "2K Gestão",
+  "description": "Gestão interna da 2K Celulares",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#f1f5f9",
+  "theme_color": "#020617",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

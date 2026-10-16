@@ -417,7 +417,7 @@ docker exec "$postgres_container" pg_dump -U postgres -d postgres \
 docker cp "$postgres_container:/tmp/2k-gestao.dump" "$tmp_dir/2k-gestao.dump"
 docker exec "$postgres_container" createdb -U postgres "$restore_db"
 docker cp "$tmp_dir/2k-gestao.dump" "$postgres_container:/tmp/2k-gestao.dump"
-docker exec "$postgres_container" pg_restore -U postgres --exit-on-error --no-owner --no-acl \
+docker exec "$postgres_container" pg_restore -U postgres --clean --if-exists --exit-on-error --no-owner --no-acl \
   --dbname="$restore_db" /tmp/2k-gestao.dump
 restored_state="$(docker exec "$postgres_container" psql -U postgres -d "$restore_db" -X -q -A -t -F '|' -v ON_ERROR_STOP=1 -c \
   "select (select count(*) from supabase_migrations.schema_migrations), (select count(*) from auth.users), (select count(*) from public.profiles), (select count(*) from public.products), (select count(*) from public.cash_sessions where status = 'closed')")"

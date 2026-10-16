@@ -15,18 +15,47 @@
 | 6 — Dashboard | IMPLEMENTADA NO CÓDIGO, NÃO VALIDADA | Dados reais via sessão/RLS, indicadores e caixa; dia de negócio em `America/Sao_Paulo`; migrations 0007–0008 para resumo agregado e escopo de roles. |
 | 7 — PWA/CSV/CI/docs | IMPLEMENTADA NO CÓDIGO, NÃO VALIDADA | Manifest/ícone, aviso e bloqueio de mutações offline, CSV com BOM e neutralização de fórmulas, CI com `npm ci`, documentação. Deploy não executado. |
 
-## Validações executadas
+## Validação e auditoria do ambiente — 2026-10-16
 
-- `npm install --no-audit --progress=false`: OK anteriormente; lockfile existe.
-- `npm run typecheck`: **PASS** após as últimas mudanças de permissões, exportação e referência financeira.
-- `npm run build`: **PASS** — Next.js 15.5.28 compilou e gerou as páginas e rotas de API.
-- Smoke test do build de produção: **PASS** — `/setup`, `/manifest.webmanifest`, `/icons/icon-192.png` e `/icons/icon-512.png` retornaram HTTP 200; JSON do manifest e declarações dos dois ícones PNG conferidos.
-- Varredura estática direcionada: a busca por `service_role` encontrou apenas comentário explicativo; os padrões SQL pesquisados para atualização direta de `current_stock` não retornaram correspondências.
-- `npm audit --omit=dev`: resultado anterior PASS, sem vulnerabilidades reportadas na árvore de produção.
-- `npm audit` completo: resultado anterior com 5 HIGH na árvore de desenvolvimento relacionada ao Tailwind 3; mantido como dívida técnica separada. Tailwind 4 não foi adotado.
-- Supabase CLI `2.121.0` estava disponível via `npx`; tentativa anterior de `supabase start` bloqueada por falta de Docker/Podman.
-- Ambiente conhecido: Node.js 24.20.0/npm 11.19.0; workflow configurado para Node 22, ainda não executado nesta sessão.
-- Nenhum Supabase local/remoto autorizado, `psql` ou credencial `.env.local` foi disponibilizado. Nenhuma migration foi aplicada nesta sessão.
+**Aplicação: PASS. Banco/Auth/RLS: BLOCKED por falta de runtime de banco.** Esta execução confirma build e smoke test, não valida migrations, policies nem transações no PostgreSQL.
+
+| Verificação | Resultado observado |
+|---|---|
+| `npm ci` | **PASS**, lockfile instalado; npm reportou 5 vulnerabilidades HIGH na árvore completa. |
+| `npm run typecheck` | **PASS**. |
+| `npm run build` | **PASS** — Next.js 15.5.28 compilou e gerou as páginas e rotas de API. |
+| Smoke de produção | **PASS nesta auditoria**: `/setup`, `/manifest.webmanifest`, `/icons/icon-192.png` e `/icons/icon-512.png` responderam HTTP 200; JSON do manifest e referências aos dois PNG conferidos. |
+| `npm audit --omit=dev` | **PASS**, 0 vulnerabilidades reportadas na árvore de produção. |
+| Auditoria completa | **5 HIGH** em dependências de desenvolvimento relacionadas ao Tailwind 3. `npm audit fix --force` propõe Tailwind 4; não executar neste ciclo. |
+| GitHub Actions (app) | **PASS** — workflow `Validate 2K Gestão` executou `npm ci`, typecheck e build no PR e no merge para `main`. |
+| Supabase CLI | **Disponível**, versão `2.121.0` via `npm exec`. |
+| `npx supabase start` / `status` | **BLOCKED** — CLI retorna `docker: command not found (podman also not found)`. |
+| Docker / Podman | **Indisponíveis** — comandos não estão no PATH, instalações convencionais não encontradas e serviços não instalados. |
+| WSL | Executável presente, mas **não instalado** (`wsl --status` informa ausência do Subsistema Windows para Linux); nenhuma distro disponível. |
+| `psql` | **Indisponível** — não encontrado no PATH nem nas instalações PostgreSQL comuns verificadas. |
+| Credenciais Supabase | **Não configuradas** — nenhuma variável Supabase/Database observada no ambiente e `2k-gestao/.env.local` não existe. |
+| Projeto Supabase remoto | **Não vinculado** — `supabase/.temp/project-ref` inexistente; não há URL/chave de projeto de teste. |
+| Configuração Supabase local | `supabase/config.toml` **adicionada**; o runner GitHub Actions tem um job para subir ambiente efêmero, aplicar migrations e executar a suíte integrada. Esse job ainda não foi executado. |
+| MCP/conector de banco | Nenhum Supabase MCP conectado nesta sessão. O catálogo encontrou um candidato Supabase MCP de risco alto, mas ele não está instalado/configurado e exige avaliação/autorização e credenciais; não oferece banco sem projeto. |
+| Banco temporário na CI | Job Supabase local adicionado ao workflow; **pendente de execução** num runner GitHub Actions com Docker. |
+| Migrations aplicadas | **0** — nenhuma migration executada nesta sessão. |
+| Auth/RLS/estoque/vendas/OS/concorrência via CI | **PENDING** — `supabase/tests/validate_local.sh` foi adicionado; somente o resultado do runner poderá confirmar os testes. |
+| Pacote final | `2K-Gestao-v1-FINAL.zip` gerado e verificado: contém código, documentação, migrations, testes SQL e workflow; exclui `.env.local`, secrets, `node_modules`, `.next` e caches. |
+
+## Varredura estática direcionada
+
+- Nenhum arquivo `.env.local`, chave `service_role` ou segredo foi encontrado entre os arquivos versionados; `.env.example` contém apenas placeholders públicos.
+- Nenhuma ocorrência de `any` ou `COUNT(*) + 1` foi encontrada nos padrões examinados. O único `ComingSoon` em rota é `/configuracoes`, fora dos módulos implementados das Fases 3–7.
+- As funções `SECURITY DEFINER` encontradas definem `search_path`; as referências às tabelas no SQL são qualificadas com `public`. As policies e o comportamento, porém, permanecem **não executados**.
+- Preço e custo de venda são lidos dos produtos no banco; sequência de vendas usa sequence; pagamentos PIX/cartão não alimentam a gaveta física; cancelamento da venda registra reversão dentro da transação.
+- O caminho de alteração de saldo no SQL é a função `apply_stock_change`; buscas estáticas não encontraram atualização direta de `current_stock` na aplicação.
+- A suíte T1–T10 e os testes transacionais Fases 3–5 existem, mas não foram executados. Foi adicionada uma suíte para teste concorrente multi-sessão no runner; ainda não existe resultado de execução.
+
+## Snapshot do repositório
+
+- Branch do checkout: `kaykypantyelly157-hue-verbose-couscous`.
+- Commit do checkout: `bb51e9c` (`Implement FinOS V1 phases 3-7`), ancestral da `main` atual (`ffaa402`).
+- Tag apontada pelo commit do checkout: nenhuma.
 
 ## Migrations e testes SQL
 
@@ -64,4 +93,4 @@
 
 ## Próxima ação exata
 
-Disponibilizar Docker/Podman + Supabase CLI local ou projeto Supabase de teste autorizado e credenciais fora do Git. Aplicar migrations 0001–0008 em banco limpo; executar T1–T10 e os testes SQL das Fases 3–5; validar Auth, RLS, usuários/roles, transações, estoque, caixa, OS, concorrência e fluxos no navegador. Registrar PASS/FAIL/BLOCKED com evidência real. Somente depois considerar as Fases 0–2 validadas ou a V1 pronta para produção.
+Executar o novo job `database` do GitHub Actions, que usa Docker efêmero do runner, inicializa o Supabase, aplica migrations `0001–0008` em banco limpo e executa Auth/RLS, T1–T10, testes de Fases 3–5 e concorrência. Se a execução falhar, corrigir e repetir; se o runner não conseguir subir Supabase, instalar Docker Desktop (ou Podman) local e executar `bash supabase/tests/validate_local.sh`. Até obter PASS real, manter as Fases 0–2 **PARCIAIS** e a V1 **não validada no banco**.

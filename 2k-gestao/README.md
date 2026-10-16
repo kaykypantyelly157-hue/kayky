@@ -59,6 +59,24 @@ from auth.users u where p.id = u.id and u.email = 'EMAIL_DO_EDSON';
 
 Confirme o e-mail e a identidade antes de executar. Não coloque e-mails reais neste arquivo. O administrador abre/fecha o caixa, registra movimento manual, consulta/finaliza/cancela vendas, cadastra produtos/clientes e controla OS. Technician não tem acesso a dados de venda/caixa; consulta clientes e OS, mas só altera status/diagnóstico e consome peças em OS atribuída; não cancela OS nem altera valores.
 
+### Supabase local de teste
+
+O repositório inclui `supabase/config.toml`. Para criar um ambiente local descartável, instale e inicie Docker Desktop (ou Podman), depois suba os serviços necessários:
+
+```powershell
+npx supabase start
+npx supabase status
+npx supabase db reset --local --no-seed
+```
+
+`db reset` recria o banco local e aplica as migrations versionadas. Para executar a suíte integrada (provisiona um usuário descartável, testa login/logout, profile ausente/inativo, T1–T10, vendas/OS/RLS e operações concorrentes), instale `psql`, `curl`, `jq` e `openssl`, depois rode no Bash:
+
+```bash
+bash supabase/tests/validate_local.sh
+```
+
+O workflow GitHub Actions executa a mesma suíte em Supabase efêmero por PR e push. Configure `.env.local` apenas com a URL local e a chave `anon` mostradas pelo status; nunca use nem copie a chave `service_role` para o app. Não aponte esses comandos para produção ou para um projeto remoto sem autorização explícita.
+
 ### Testes de banco
 
 Os scripts usam transação e `ROLLBACK`. Execute apenas em instância de teste com usuário admin ativo:

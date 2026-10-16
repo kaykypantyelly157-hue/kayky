@@ -2,7 +2,7 @@
 
 ## Estado oficial
 
-**Banco/Auth/RLS e Fases 0–2: VALIDADOS em Supabase efêmero no GitHub Actions.** Migrations `0001–0008`, T1–T10, testes SQL das Fases 3–5 e as corridas concorrentes passaram no runner. A aplicação ainda não está declarada pronta para produção: deploy, testes de navegador/mobile e restauração prática de backup não foram executados.
+**Banco/Auth/RLS, backup/restore automatizado e Fases 0–2: VALIDADOS em Supabase efêmero no GitHub Actions.** Migrations `0001–0008`, T1–T10, testes SQL das Fases 3–5, corridas concorrentes e restauração dos schemas de aplicação/Auth passaram. A aplicação ainda não está declarada pronta para produção: deploy e testes de navegador/mobile não foram executados.
 
 | Fase | Estado | Evidência / limite |
 |---|---|---|
@@ -13,11 +13,11 @@
 | 4 — Vendas + Caixa | TESTES SQL PASS; UI NÃO TESTADA | Migration 0005, venda, pagamentos, caixa, cancelamento e estorno verificados; corrida venda vs. fechamento passou. |
 | 5 — Ordens de serviço | TESTES SQL PASS; UI NÃO TESTADA | Migration 0006, transições, atribuição, peças/estornos, histórico e limites de technician verificados. Senha do aparelho não é armazenada. |
 | 6 — Dashboard | MIGRATION APLICADA; UI NÃO TESTADA | Migrations 0007–0008 aplicadas; build passou. Consultas e fluxos do dashboard não tiveram teste de navegador dedicado. |
-| 7 — PWA/CSV/CI/docs | BUILD/CI PASS; OPERAÇÃO PARCIAL | Manifest/ícones, CSV e documentação existem; CI passou. Deploy, teste em dispositivos e restauração de backup não executados. |
+| 7 — PWA/CSV/CI/docs | BUILD/CI E BACKUP/RESTORE PASS; OPERAÇÃO PARCIAL | Manifest/ícones, CSV e documentação existem; CI e restore isolado dos schemas de aplicação/Auth passaram. Deploy e teste em dispositivos não executados. |
 
 ## Validação e auditoria do ambiente — 2026-10-16
 
-**Resultado final da validação automatizada: PASS** no run GitHub Actions `38868675423` (jobs `validate` e `database`, ambos concluídos com sucesso). O banco foi efêmero, criado pelo runner Ubuntu/Docker e descartado ao final; não foi usado projeto remoto nem produção.
+**Resultado final da validação automatizada: PASS** no run GitHub Actions `38871226985` (jobs `validate` e `database`, ambos concluídos com sucesso). O banco foi efêmero, criado pelo runner Ubuntu/Docker e descartado ao final; não foi usado projeto remoto nem produção.
 
 | Verificação | Resultado observado |
 |---|---|
@@ -45,7 +45,8 @@
 | T1–T10 | **PASS** — `supabase/tests/fase2_estoque.sql` concluiu todos os testes e rollback. |
 | Fases 3–5 | **PASS** — testes transacionais de clientes, vendas, caixa, OS, peças, cancelamento e RBAC concluídos e revertidos. |
 | Concorrência | **PASS** — duas entradas e duas baixas concorrentes no mesmo produto, uma baixa rejeitada, saldo/histórico consistentes; venda vs. fechamento do caixa sem perda de saldo ou estoque. |
-| Tentativas de CI anteriores | Três execuções iniciais falharam por fixture de technician e interpolação/saída do `psql`; correções aplicadas e a execução completa posterior passou. Não são falhas pendentes. |
+| Backup/restore | **PASS** — dump custom dos schemas `public`, `auth`, `supabase_migrations` e `extensions`; restore em banco separado; migrations e contagens representativas de usuários, profiles, produtos e caixa conferidas. |
+| Tentativas de CI anteriores | Execuções iniciais identificaram e corrigiram fixture de technician, interpolação/saída do `psql`, versão incompatível do `pg_dump` e preparação do schema de restore. A execução completa mais recente passou. Nenhuma dessas falhas está pendente. |
 | Pacote final | `2K-Gestao-v1-FINAL.zip` — 89 arquivos; conteúdo e exclusões verificados após a geração deste relatório. |
 
 ## Varredura estática direcionada
@@ -60,14 +61,14 @@
 ## Snapshot do repositório
 
 - Branch de validação: `validate-supabase-database`.
-- Commit testado pelo run `38868675423`: `8ccddf1` (`Suppress psql command tags in captured IDs`), baseado na `main` `ffaa402`.
-- Tag `v1.0.0`: não criada; o trabalho de validação está em revisão e deploy/backup-restauração permanecem sem execução.
+- Commit testado pelo run `38871226985`: `8d67c57` (`Restore into a clean public schema`), baseado na `main` `ffaa402`.
+- Tag `v1.0.0`: não criada; o trabalho de validação está em revisão; deploy e ensaio operacional no provedor permanecem pendentes.
 
 ## Migrations e testes SQL
 
 | Item | Resultado |
 |---|---|
-| 0001–0008 em banco limpo | **PASS** — aplicadas e verificadas em ordem no run `38868675423` |
+| 0001–0008 em banco limpo | **PASS** — aplicadas e verificadas em ordem no run `38871226985` |
 | T1–T10 (Fase 2) | **PASS** — script SQL completo |
 | Testes SQL Fases 3–5 | **PASS** — script transacional completo |
 | Auth, sessão, login/logout e usuário inativo | **PASS** — admin e technician; profile ausente/inativo; refresh revogado |
@@ -75,13 +76,15 @@
 | Venda concorrente vs fechamento de caixa | **PASS** — estado final coerente em ambas as ordens possíveis |
 | Concorrência de estoque | **PASS** — atualizações serializadas, sem saldo negativo nem perda de histórico |
 | Concorrência de numeração de vendas | NÃO TESTADA isoladamente; sequence existe e não usa `COUNT(*) + 1` |
+| Backup/restore dos schemas de aplicação/Auth | **PASS** — dump e restore em banco separado, com validação de migrations e dados representativos |
 | Testes de navegador/mobile | NÃO EXECUTADOS |
 | Isolamento entre empresas | NÃO APLICÁVEL — V1 é de uma empresa, sem multi-tenant |
-| Deploy e restore de backup | NÃO EXECUTADOS — host/credenciais não autorizados |
+| Deploy | NÃO EXECUTADO — host/credenciais não autorizados |
+| Recuperação operacional no provedor | NÃO EXECUTADA — o restore automatizado em banco separado passou; não houve restore num projeto de provedor |
 
 ## Riscos e decisões
 
-- A validação automatizada de banco passou; ainda não houve deploy, testes de navegador/mobile ou restauração de backup em ambiente separado.
+- A validação automatizada de banco e o restore isolado passaram; ainda não houve deploy nem testes de navegador/mobile.
 - Aplicar apenas em projeto local/de teste autorizado; não usar produção para testes. Não editar migrations já aplicadas em ambiente persistente: criar migration incremental.
 - Admin executa operações financeiras e cadastro. Technician consulta vendas/caixa e só opera em OS atribuída; não altera valores nem cancela OS.
 - Vendas exigem caixa aberto, usam preço/custo atuais do banco e não aceitam saldo ou preço do cliente. Cancelamento precisa de motivo e registra reversões sem apagar venda.
@@ -92,4 +95,4 @@
 
 ## Próxima ação exata
 
-Próxima etapa: concluir revisão/integração das alterações de validação; depois, antes de produção, executar smoke test em navegador/dispositivo e ensaio de backup/restauração em projeto de teste autorizado. **Fases 0–2 estão validadas pela suíte automatizada; não declarar deploy ou recuperação de backup validados.**
+Próxima etapa: concluir revisão/integração das alterações de validação; depois, antes de produção, executar smoke test em navegador/dispositivo e um ensaio operacional de backup/restauração no provedor autorizado. **Fases 0–2, migrations/Auth/RLS, testes SQL, concorrência e restore automatizado estão validados; deploy e operação em dispositivos permanecem pendentes.**

@@ -1,6 +1,6 @@
 # 2K Gestão v1
 
-Aplicação interna da 2K Celulares para produtos, estoque, clientes, vendas, caixa e ordens de serviço. A base foi reconstruída a partir das decisões e especificações disponíveis; os fontes históricos originais não estavam no arquivo de referência. Migrations, Auth/RLS, T1–T10, testes SQL das Fases 3–5 e concorrência passaram em Supabase efêmero no GitHub Actions. Deploy, teste em dispositivos e restauração de backup continuam pendentes; consulte `STATUS_EXECUCAO.md`.
+Aplicação interna da 2K Celulares para produtos, estoque, clientes, vendas, caixa e ordens de serviço. A base foi reconstruída a partir das decisões e especificações disponíveis; os fontes históricos originais não estavam no arquivo de referência. Migrations, Auth/RLS, T1–T10, testes SQL das Fases 3–5, concorrência e restore automatizado passaram em Supabase efêmero no GitHub Actions. Deploy e testes em dispositivos continuam pendentes; consulte `STATUS_EXECUCAO.md`.
 
 ## Stack e limites
 
@@ -86,7 +86,7 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/fase2_estoque.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/fase3_5_clientes_vendas_caixa_os.sql
 ```
 
-Eles cobrem regras SQL essenciais; não substituem testes concorrentes multi-sessão, teste de navegador, Auth end-to-end nem restore de backup. Esses testes permanecem pendentes até existir infraestrutura autorizada.
+Eles cobrem regras SQL essenciais. A suíte CI também executa Auth/RLS end-to-end, concorrência e restore isolado dos schemas de aplicação/Auth. Testes de navegador e um ensaio de recuperação no provedor de produção continuam pendentes.
 
 ## Rotinas operacionais
 

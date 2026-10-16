@@ -177,7 +177,7 @@ psql "$DB_URL" -X -v ON_ERROR_STOP=1 -v admin_id="$admin_id" \
   -f supabase/tests/fase3_5_clientes_vendas_caixa_os.sql
 
 product_sku="CI-CONC-$(openssl rand -hex 6)"
-product_id="$(psql "$DB_URL" -X -A -t -v ON_ERROR_STOP=1 -v product_sku="$product_sku" <<'SQL'
+product_id="$(psql "$DB_URL" -X -q -A -t -v ON_ERROR_STOP=1 -v product_sku="$product_sku" <<'SQL'
 insert into public.products (sku, name, cost_price, sale_price)
 values (:'product_sku', 'Concurrent stock test', 1, 2)
 returning id;
@@ -285,7 +285,7 @@ fi
 echo "PASS: technician REST request cannot mutate stock"
 
 cash_race_sku="CI-CASH-RACE-$(openssl rand -hex 6)"
-cash_race_product_id="$(psql "$DB_URL" -X -A -t -v ON_ERROR_STOP=1 -v product_sku="$cash_race_sku" <<'SQL'
+cash_race_product_id="$(psql "$DB_URL" -X -q -A -t -v ON_ERROR_STOP=1 -v product_sku="$cash_race_sku" <<'SQL'
 insert into public.products (sku, name, cost_price, sale_price)
 values (:'product_sku', 'Concurrent cash-close test', 1, 2)
 returning id;

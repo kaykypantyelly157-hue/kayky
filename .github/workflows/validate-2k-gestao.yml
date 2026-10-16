@@ -40,3 +40,33 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+  database:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 2k-gestao
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Supabase CLI and PostgreSQL client
+        run: |
+          npx --yes supabase@2.121.0 --version
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y postgresql-client
+
+      - name: Start isolated local Supabase
+        run: npx --yes supabase@2.121.0 start --exclude storage-api,imgproxy,realtime,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+      - name: Apply migrations and test Auth, RLS, stock, sales, service orders, concurrency, and backup restore
+        run: bash supabase/tests/validate_local.sh
+
+      - name: Stop local Supabase
+        if: always()
+        run: npx --yes supabase@2.121.0 stop --no-backup

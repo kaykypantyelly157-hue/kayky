@@ -2,58 +2,89 @@
 
 ## Estado oficial
 
-**V1: IMPLEMENTADA NO CÓDIGO, AINDA PARCIAL / NÃO VALIDADA NO BANCO.** As Fases 3–7 foram construídas sem executar migrations ou testes em Supabase. Não declarar Fases 0–2 validadas, Auth/RLS integrados validados ou V1 pronta para produção.
+**Banco/Auth/RLS, backup/restore automatizado e Fases 0–2: VALIDADOS em Supabase efêmero no GitHub Actions.** Migrations `0001–0008`, T1–T10, testes SQL das Fases 3–5, corridas concorrentes e restauração dos schemas de aplicação/Auth passaram. A aplicação ainda não está declarada pronta para produção: deploy e testes de navegador/mobile não foram executados.
 
 | Fase | Estado | Evidência / limite |
 |---|---|---|
-| 0 — Fundação | PARCIAL | Base reconstruída a partir das especificações; os fontes históricos originais não estavam no JSON. |
-| 1 — Auth, RLS e layout | IMPLEMENTADA, NÃO VALIDADA | Login/logout, profiles, middleware e policies existem; Auth real, usuários inativos e RLS não foram exercitados. |
-| 2 — Produtos + Estoque | IMPLEMENTADA, NÃO VALIDADA NO BANCO | Código e migrations 0002–0003 existentes; T1–T10 e concorrência ainda não executados. |
-| 3 — Clientes | IMPLEMENTADA NO CÓDIGO, NÃO VALIDADA | Migration 0004, normalização/CPF único parcial, API, RLS e UI de busca/cadastro. |
-| 4 — Vendas + Caixa | IMPLEMENTADA NO CÓDIGO, NÃO VALIDADA | Migration 0005 e permissões incrementais em 0008; RPCs transacionais, caixa, pagamentos, estoque, histórico, cancelamento e telas. Admin-only. |
-| 5 — Ordens de serviço | IMPLEMENTADA NO CÓDIGO, NÃO VALIDADA | Migration 0006, status explícitos, peças/estornos, atribuição e histórico; senha do aparelho não é armazenada. |
-| 6 — Dashboard | IMPLEMENTADA NO CÓDIGO, NÃO VALIDADA | Dados reais via sessão/RLS, indicadores e caixa; dia de negócio em `America/Sao_Paulo`; migrations 0007–0008 para resumo agregado e escopo de roles. |
-| 7 — PWA/CSV/CI/docs | IMPLEMENTADA NO CÓDIGO, NÃO VALIDADA | Manifest/ícone, aviso e bloqueio de mutações offline, CSV com BOM e neutralização de fórmulas, CI com `npm ci`, documentação. Deploy não executado. |
+| 0 — Fundação | VALIDADA | Estrutura e migrations aplicadas em banco limpo; os fontes históricos originais não estavam no JSON de referência. |
+| 1 — Auth, RLS e layout | VALIDADA NO BANCO | Login válido/inválido, sessão, logout/refresh, profiles, usuário inativo, admin/technician e políticas anon/autenticado exercitados. Testes de navegador não executados. |
+| 2 — Produtos + Estoque | VALIDADA | Migrations 0002–0003 e T1–T10 passaram; concorrência de saldo confirmou locks, saldo final e histórico. |
+| 3 — Clientes | TESTES SQL PASS; UI NÃO TESTADA | Migration 0004, normalização e unicidade parcial de CPF verificadas na suíte transacional. |
+| 4 — Vendas + Caixa | TESTES SQL PASS; UI NÃO TESTADA | Migration 0005, venda, pagamentos, caixa, cancelamento e estorno verificados; corrida venda vs. fechamento passou. |
+| 5 — Ordens de serviço | TESTES SQL PASS; UI NÃO TESTADA | Migration 0006, transições, atribuição, peças/estornos, histórico e limites de technician verificados. Senha do aparelho não é armazenada. |
+| 6 — Dashboard | MIGRATION APLICADA; UI NÃO TESTADA | Migrations 0007–0008 aplicadas; build passou. Consultas e fluxos do dashboard não tiveram teste de navegador dedicado. |
+| 7 — PWA/CSV/CI/docs | BUILD/CI E BACKUP/RESTORE PASS; OPERAÇÃO PARCIAL | Manifest/ícones, CSV e documentação existem; CI e restore isolado dos schemas de aplicação/Auth passaram. Deploy e teste em dispositivos não executados. |
 
-## Validações executadas
+## Validação e auditoria do ambiente — 2026-10-16
 
-- `npm install --no-audit --progress=false`: OK anteriormente; lockfile existe.
-- `npm run typecheck`: **PASS** após as últimas mudanças de permissões, exportação e referência financeira.
-- `npm run build`: **PASS** — Next.js 15.5.28 compilou e gerou as páginas e rotas de API.
-- Smoke test do build de produção: **PASS** — `/setup`, `/manifest.webmanifest`, `/icons/icon-192.png` e `/icons/icon-512.png` retornaram HTTP 200; JSON do manifest e declarações dos dois ícones PNG conferidos.
-- Varredura estática direcionada: a busca por `service_role` encontrou apenas comentário explicativo; os padrões SQL pesquisados para atualização direta de `current_stock` não retornaram correspondências.
-- `npm audit --omit=dev`: resultado anterior PASS, sem vulnerabilidades reportadas na árvore de produção.
-- `npm audit` completo: resultado anterior com 5 HIGH na árvore de desenvolvimento relacionada ao Tailwind 3; mantido como dívida técnica separada. Tailwind 4 não foi adotado.
-- Supabase CLI `2.121.0` estava disponível via `npx`; tentativa anterior de `supabase start` bloqueada por falta de Docker/Podman.
-- Ambiente conhecido: Node.js 24.20.0/npm 11.19.0; workflow configurado para Node 22, ainda não executado nesta sessão.
-- Nenhum Supabase local/remoto autorizado, `psql` ou credencial `.env.local` foi disponibilizado. Nenhuma migration foi aplicada nesta sessão.
+**Resultado final da validação automatizada: PASS** no run GitHub Actions `38871226985` (jobs `validate` e `database`, ambos concluídos com sucesso). O banco foi efêmero, criado pelo runner Ubuntu/Docker e descartado ao final; não foi usado projeto remoto nem produção.
+
+| Verificação | Resultado observado |
+|---|---|
+| `npm ci` | **PASS** local e no job `validate`; lockfile instalado. Auditoria anterior reportou 5 vulnerabilidades HIGH na árvore completa. |
+| `npm run typecheck` | **PASS** local e no job `validate`. |
+| `npm run build` | **PASS** local e no job `validate` — Next.js 15.5.28 compilou e gerou as páginas e rotas de API. |
+| Smoke de produção | **PASS nesta auditoria**: `/setup`, `/manifest.webmanifest`, `/icons/icon-192.png` e `/icons/icon-512.png` responderam HTTP 200; JSON do manifest e referências aos dois PNG conferidos. |
+| `npm audit --omit=dev` | **PASS**, 0 vulnerabilidades reportadas na árvore de produção. |
+| Auditoria completa | **5 HIGH** em dependências de desenvolvimento relacionadas ao Tailwind 3. `npm audit fix --force` propõe Tailwind 4; não executar neste ciclo. |
+| GitHub Actions (app) | **PASS** — workflow `Validate 2K Gestão` executou `npm ci`, typecheck e build no PR e no merge para `main`. |
+| Supabase CLI | **PASS**, versão `2.121.0` executada no runner Ubuntu. |
+| `supabase start` no runner | **PASS** — serviços efêmeros iniciados; desligados ao final do job. |
+| Execução local de Supabase | **BLOCKED** — máquina Windows continua sem Docker/Podman. |
+| Docker / Podman | **Indisponíveis** — comandos não estão no PATH, instalações convencionais não encontradas e serviços não instalados. |
+| WSL | Executável presente, mas **não instalado** (`wsl --status` informa ausência do Subsistema Windows para Linux); nenhuma distro disponível. |
+| `psql` | **Indisponível** — não encontrado no PATH nem nas instalações PostgreSQL comuns verificadas. |
+| Credenciais Supabase | **Não configuradas** — nenhuma variável Supabase/Database observada no ambiente e `2k-gestao/.env.local` não existe. |
+| Projeto Supabase remoto | **Não vinculado** — `supabase/.temp/project-ref` inexistente; não há URL/chave de projeto de teste. |
+| Configuração Supabase | `supabase/config.toml` adicionada; job GitHub Actions validado com execução real no runner. |
+| MCP/conector de banco | Nenhum Supabase MCP conectado nesta sessão. O catálogo encontrou um candidato Supabase MCP de risco alto, mas ele não está instalado/configurado e exige avaliação/autorização e credenciais; não oferece banco sem projeto. |
+| Banco temporário na CI | **PASS** — banco local descartável no runner; nenhuma credencial remota utilizada. |
+| Migrations aplicadas | **PASS** — 0001–0008, em ordem, em banco limpo. |
+| Auth | **PASS** — senha inválida rejeitada; login/sessão válidos para admin e technician; profile technician lido pelo próprio usuário; profile ausente e usuário inativo sem acesso; logout revogou refresh token. |
+| RLS e permissões | **PASS** — testes SQL anon/authenticated/admin/technician; technician sem acesso financeiro ou mutação manual de estoque. |
+| T1–T10 | **PASS** — `supabase/tests/fase2_estoque.sql` concluiu todos os testes e rollback. |
+| Fases 3–5 | **PASS** — testes transacionais de clientes, vendas, caixa, OS, peças, cancelamento e RBAC concluídos e revertidos. |
+| Concorrência | **PASS** — duas entradas e duas baixas concorrentes no mesmo produto, uma baixa rejeitada, saldo/histórico consistentes; venda vs. fechamento do caixa sem perda de saldo ou estoque. |
+| Backup/restore | **PASS** — dump custom dos schemas `public`, `auth`, `supabase_migrations` e `extensions`; restore em banco separado; migrations e contagens representativas de usuários, profiles, produtos e caixa conferidas. |
+| Tentativas de CI anteriores | Execuções iniciais identificaram e corrigiram fixture de technician, interpolação/saída do `psql`, versão incompatível do `pg_dump` e preparação do schema de restore. A execução completa mais recente passou. Nenhuma dessas falhas está pendente. |
+| Pacote final | `2K-Gestao-v1-FINAL.zip` — 89 arquivos; conteúdo e exclusões verificados após a geração deste relatório. |
+
+## Varredura estática direcionada
+
+- Nenhum arquivo `.env.local`, chave `service_role` ou segredo foi encontrado entre os arquivos versionados; `.env.example` contém apenas placeholders públicos.
+- Nenhuma ocorrência de `any` ou `COUNT(*) + 1` foi encontrada nos padrões examinados. O único `ComingSoon` em rota é `/configuracoes`, fora dos módulos implementados das Fases 3–7.
+- As funções `SECURITY DEFINER` encontradas definem `search_path`; as referências às tabelas no SQL são qualificadas com `public`. Migrations, Auth/RLS e regras exercitadas passaram na suíte do runner; isso não substitui uma revisão independente de segurança.
+- Preço e custo de venda são lidos dos produtos no banco; sequência de vendas usa sequence; pagamentos PIX/cartão não alimentam a gaveta física; cancelamento da venda registra reversão dentro da transação.
+- O caminho de alteração de saldo no SQL é a função `apply_stock_change`; buscas estáticas não encontraram atualização direta de `current_stock` na aplicação.
+- A suíte T1–T10 e os testes transacionais Fases 3–5 passaram no runner efêmero; concorrência de estoque e venda/fechamento também passou.
+
+## Snapshot do repositório
+
+- Branch de validação: `validate-supabase-database`.
+- Commit testado pelo run `38871226985`: `8d67c57` (`Restore into a clean public schema`), baseado na `main` `ffaa402`.
+- Tag `v1.0.0`: não criada; o trabalho de validação está em revisão; deploy e ensaio operacional no provedor permanecem pendentes.
 
 ## Migrations e testes SQL
 
 | Item | Resultado |
 |---|---|
-| 0001 profiles/Auth/RLS | BLOCKED — não aplicada |
-| 0002 produtos/estoque | BLOCKED — não aplicada |
-| 0003 permissões manuais de estoque | BLOCKED — não aplicada |
-| 0004 clientes | BLOCKED — não aplicada |
-| 0005 vendas/caixa | BLOCKED — não aplicada |
-| 0006 ordens de serviço | BLOCKED — não aplicada |
-| 0007 resumo do caixa para dashboard | BLOCKED — não aplicada |
-| 0008 permissões de leitura por role | BLOCKED — não aplicada |
-| Banco limpo e ordem 0001–0008 | BLOCKED — sem Postgres/Supabase de teste |
-| T1–T10 (Fase 2) | BLOCKED — `supabase/tests/fase2_estoque.sql` não executado |
-| Testes SQL Fases 3–5 | BLOCKED — `supabase/tests/fase3_5_clientes_vendas_caixa_os.sql` não executado |
-| Auth, sessão, login/logout e usuário inativo | BLOCKED — sem Auth Supabase executável |
-| RLS, admin/technician e acesso anônimo | BLOCKED — sem banco para execução |
-| Venda concorrente vs fechamento de caixa | BLOCKED — exige sessões concorrentes reais |
-| Concorrência de saldo e numeração | BLOCKED — exige execução concorrente |
+| 0001–0008 em banco limpo | **PASS** — aplicadas e verificadas em ordem no run `38871226985` |
+| T1–T10 (Fase 2) | **PASS** — script SQL completo |
+| Testes SQL Fases 3–5 | **PASS** — script transacional completo |
+| Auth, sessão, login/logout e usuário inativo | **PASS** — admin e technician; profile ausente/inativo; refresh revogado |
+| RLS, admin/technician e acesso anônimo | **PASS** — SQL sob roles/JWT claims e requests REST autenticados |
+| Venda concorrente vs fechamento de caixa | **PASS** — estado final coerente em ambas as ordens possíveis |
+| Concorrência de estoque | **PASS** — atualizações serializadas, sem saldo negativo nem perda de histórico |
+| Concorrência de numeração de vendas | NÃO TESTADA isoladamente; sequence existe e não usa `COUNT(*) + 1` |
+| Backup/restore dos schemas de aplicação/Auth | **PASS** — dump e restore em banco separado, com validação de migrations e dados representativos |
 | Testes de navegador/mobile | NÃO EXECUTADOS |
 | Isolamento entre empresas | NÃO APLICÁVEL — V1 é de uma empresa, sem multi-tenant |
-| Deploy e restore de backup | NÃO EXECUTADOS — host/credenciais não autorizados |
+| Deploy | NÃO EXECUTADO — host/credenciais não autorizados |
+| Recuperação operacional no provedor | NÃO EXECUTADA — o restore automatizado em banco separado passou; não houve restore num projeto de provedor |
 
 ## Riscos e decisões
 
-- A execução de migrations, transações, RLS, Auth e concorrência permanece o principal bloqueio. Typecheck/build não substituem esses testes.
+- A validação automatizada de banco e o restore isolado passaram; ainda não houve deploy nem testes de navegador/mobile.
 - Aplicar apenas em projeto local/de teste autorizado; não usar produção para testes. Não editar migrations já aplicadas em ambiente persistente: criar migration incremental.
 - Admin executa operações financeiras e cadastro. Technician consulta vendas/caixa e só opera em OS atribuída; não altera valores nem cancela OS.
 - Vendas exigem caixa aberto, usam preço/custo atuais do banco e não aceitam saldo ou preço do cliente. Cancelamento precisa de motivo e registra reversões sem apagar venda.
@@ -64,4 +95,4 @@
 
 ## Próxima ação exata
 
-Disponibilizar Docker/Podman + Supabase CLI local ou projeto Supabase de teste autorizado e credenciais fora do Git. Aplicar migrations 0001–0008 em banco limpo; executar T1–T10 e os testes SQL das Fases 3–5; validar Auth, RLS, usuários/roles, transações, estoque, caixa, OS, concorrência e fluxos no navegador. Registrar PASS/FAIL/BLOCKED com evidência real. Somente depois considerar as Fases 0–2 validadas ou a V1 pronta para produção.
+Próxima etapa: concluir revisão/integração das alterações de validação; depois, antes de produção, executar smoke test em navegador/dispositivo e um ensaio operacional de backup/restauração no provedor autorizado. **Fases 0–2, migrations/Auth/RLS, testes SQL, concorrência e restore automatizado estão validados; deploy e operação em dispositivos permanecem pendentes.**

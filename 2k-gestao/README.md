@@ -1,6 +1,6 @@
 # 2K Gestão v1
 
-Aplicação interna da 2K Celulares para produtos, estoque, clientes, vendas, caixa e ordens de serviço. A base foi reconstruída a partir das decisões e especificações disponíveis; os fontes históricos originais não estavam no arquivo de referência. A aplicação continua **parcial até que as migrations e os testes integrados sejam executados em um Supabase de teste**.
+Aplicação interna da 2K Celulares para produtos, estoque, clientes, vendas, caixa e ordens de serviço. A base foi reconstruída a partir das decisões e especificações disponíveis; os fontes históricos originais não estavam no arquivo de referência. Migrations, Auth/RLS, T1–T10, testes SQL das Fases 3–5, concorrência e restore automatizado passaram em Supabase efêmero no GitHub Actions. Deploy e testes em dispositivos continuam pendentes; consulte `STATUS_EXECUCAO.md`.
 
 ## Stack e limites
 
@@ -59,16 +59,34 @@ from auth.users u where p.id = u.id and u.email = 'EMAIL_DO_EDSON';
 
 Confirme o e-mail e a identidade antes de executar. Não coloque e-mails reais neste arquivo. O administrador abre/fecha o caixa, registra movimento manual, consulta/finaliza/cancela vendas, cadastra produtos/clientes e controla OS. Technician não tem acesso a dados de venda/caixa; consulta clientes e OS, mas só altera status/diagnóstico e consome peças em OS atribuída; não cancela OS nem altera valores.
 
+### Supabase local de teste
+
+O repositório inclui `supabase/config.toml`. Para criar um ambiente local descartável, instale e inicie Docker Desktop (ou Podman), depois suba os serviços necessários:
+
+```powershell
+npx supabase start
+npx supabase status
+npx supabase db reset --local --no-seed
+```
+
+`db reset` recria o banco local e aplica as migrations versionadas. Para executar a suíte integrada (provisiona usuários descartáveis, testa Auth/RLS, profile ausente/inativo, T1–T10, vendas/OS, operações concorrentes e dump/restore dos schemas de aplicação/Auth em banco separado), instale `psql`, `curl`, `jq` e `openssl`; as ferramentas de backup/restore são executadas dentro do container Postgres 17. Rode no Bash:
+
+```bash
+bash supabase/tests/validate_local.sh
+```
+
+O workflow GitHub Actions executa a mesma suíte em Supabase efêmero por PR e push. Configure `.env.local` apenas com a URL local e a chave `anon` mostradas pelo status; nunca use nem copie a chave `service_role` para o app. Não aponte esses comandos para produção ou para um projeto remoto sem autorização explícita.
+
 ### Testes de banco
 
-Os scripts usam transação e `ROLLBACK`. Execute apenas em instância de teste com usuário admin ativo:
+Os scripts usam transação e `ROLLBACK`. O teste Fases 3–5 precisa de pelo menos um profile `admin` e um `technician` ativos; execute apenas em instância de teste:
 
 ```text
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/fase2_estoque.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/fase3_5_clientes_vendas_caixa_os.sql
 ```
 
-Eles cobrem regras SQL essenciais; não substituem testes concorrentes multi-sessão, teste de navegador, Auth end-to-end nem restore de backup. Esses testes permanecem pendentes até existir infraestrutura autorizada.
+Eles cobrem regras SQL essenciais. A suíte CI também executa Auth/RLS end-to-end, concorrência e restore isolado dos schemas de aplicação/Auth. Testes de navegador e um ensaio de recuperação no provedor de produção continuam pendentes.
 
 ## Rotinas operacionais
 

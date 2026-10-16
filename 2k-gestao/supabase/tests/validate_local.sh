@@ -177,8 +177,12 @@ psql "$DB_URL" -X -v ON_ERROR_STOP=1 -v admin_id="$admin_id" \
   -f supabase/tests/fase3_5_clientes_vendas_caixa_os.sql
 
 product_sku="CI-CONC-$(openssl rand -hex 6)"
-product_id="$(psql "$DB_URL" -X -A -t -v ON_ERROR_STOP=1 -v product_sku="$product_sku" -c \
-  "insert into public.products (sku, name, cost_price, sale_price) values (:'product_sku', 'Concurrent stock test', 1, 2) returning id")"
+product_id="$(psql "$DB_URL" -X -A -t -v ON_ERROR_STOP=1 -v product_sku="$product_sku" <<'SQL'
+insert into public.products (sku, name, cost_price, sale_price)
+values (:'product_sku', 'Concurrent stock test', 1, 2)
+returning id;
+SQL
+)"
 
 run_add_stock() {
   local log_file="$1"
@@ -239,18 +243,19 @@ if [[ "$adjust_a_status" -eq "$adjust_b_status" ]]; then
 fi
 
 concurrency_result="$(psql "$DB_URL" -X -A -t -F '|' -v ON_ERROR_STOP=1 \
-  -v product_id="$product_id" -c "
-    select p.current_stock,
-      count(m.id),
-      count(*) filter (where m.stock_before = 0 and m.stock_after = 10),
-      count(*) filter (where m.stock_before = 10 and m.stock_after = 20),
-      count(*) filter (where m.stock_before = 20 and m.stock_after = 5),
-      coalesce(min(m.stock_after), 0)
-    from public.products p
-    left join public.stock_movements m on m.product_id = p.id
-    where p.id = :'product_id'::uuid
-    group by p.id, p.current_stock
-  ")"
+  -v product_id="$product_id" <<'SQL'
+select p.current_stock,
+  count(m.id),
+  count(*) filter (where m.stock_before = 0 and m.stock_after = 10),
+  count(*) filter (where m.stock_before = 10 and m.stock_after = 20),
+  count(*) filter (where m.stock_before = 20 and m.stock_after = 5),
+  coalesce(min(m.stock_after), 0)
+from public.products p
+left join public.stock_movements m on m.product_id = p.id
+where p.id = :'product_id'::uuid
+group by p.id, p.current_stock;
+SQL
+)"
 if [[ "$concurrency_result" != "5|3|1|1|1|5" ]]; then
   echo "Unexpected concurrent stock state: $concurrency_result" >&2
   exit 1
@@ -269,8 +274,10 @@ if [[ "$technician_stock_status" == "200" ]]; then
   exit 1
 fi
 technician_stock_after="$(psql "$DB_URL" -X -A -t -v ON_ERROR_STOP=1 \
-  -v product_id="$product_id" \
-  -c "select current_stock from public.products where id = :'product_id'::uuid")"
+  -v product_id="$product_id" <<'SQL'
+select current_stock from public.products where id = :'product_id'::uuid;
+SQL
+)"
 if [[ "$technician_stock_after" != "5" ]]; then
   echo "Unauthorized technician request changed stock to $technician_stock_after" >&2
   exit 1
@@ -278,8 +285,12 @@ fi
 echo "PASS: technician REST request cannot mutate stock"
 
 cash_race_sku="CI-CASH-RACE-$(openssl rand -hex 6)"
-cash_race_product_id="$(psql "$DB_URL" -X -A -t -v ON_ERROR_STOP=1 -v product_sku="$cash_race_sku" -c \
-  "insert into public.products (sku, name, cost_price, sale_price) values (:'product_sku', 'Concurrent cash-close test', 1, 2) returning id")"
+cash_race_product_id="$(psql "$DB_URL" -X -A -t -v ON_ERROR_STOP=1 -v product_sku="$cash_race_sku" <<'SQL'
+insert into public.products (sku, name, cost_price, sale_price)
+values (:'product_sku', 'Concurrent cash-close test', 1, 2)
+returning id;
+SQL
+)"
 psql "$DB_URL" -X -v ON_ERROR_STOP=1 \
   -v admin_id="$admin_id" -v product_id="$cash_race_product_id" <<'SQL'
 begin;
@@ -345,19 +356,20 @@ if [[ "$sale_status" -ne 0 ]] && ! grep -q 'CAIXA_FECHADO' "$tmp_dir/sale.log"; 
 fi
 
 cash_race_result="$(psql "$DB_URL" -X -A -t -F '|' -v ON_ERROR_STOP=1 \
-  -v product_id="$cash_race_product_id" -c "
-    select to_char(cs.closing_expected, 'FM9999999990.00'),
-      (select count(*) from public.sales s where s.cash_session_id = cs.id),
-      p.current_stock,
-      (select to_char(coalesce(sum(cm.amount), 0)::numeric(12,2), 'FM9999999990.00')
-       from public.cash_movements cm
-       where cm.cash_session_id = cs.id and cm.movement_type = 'entrada')
-    from public.cash_sessions cs
-    cross join public.products p
-    where cs.status = 'closed'
-      and cs.opening_note = 'cash-close concurrency test'
-      and p.id = :'product_id'::uuid
-  ")"
+  -v product_id="$cash_race_product_id" <<'SQL'
+select to_char(cs.closing_expected, 'FM9999999990.00'),
+  (select count(*) from public.sales s where s.cash_session_id = cs.id),
+  p.current_stock,
+  (select to_char(coalesce(sum(cm.amount), 0)::numeric(12,2), 'FM9999999990.00')
+   from public.cash_movements cm
+   where cm.cash_session_id = cs.id and cm.movement_type = 'entrada')
+from public.cash_sessions cs
+cross join public.products p
+where cs.status = 'closed'
+  and cs.opening_note = 'cash-close concurrency test'
+  and p.id = :'product_id'::uuid;
+SQL
+)"
 if [[ "$sale_status" -eq 0 ]]; then
   expected_cash_race='22.00|1|0|2.00'
 else

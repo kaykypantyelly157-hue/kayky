@@ -64,7 +64,7 @@ jobs:
       - name: Start isolated local Supabase
         run: npx --yes supabase@2.121.0 start --exclude storage-api,imgproxy,realtime,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
 
-      - name: Apply migrations and test Auth, RLS, stock, sales, service orders, and concurrency
+      - name: Apply migrations and test Auth, RLS, stock, sales, service orders, concurrency, and backup restore
         run: bash supabase/tests/validate_local.sh
 
       - name: Stop local Supabase

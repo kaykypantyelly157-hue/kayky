@@ -399,3 +399,21 @@ if [[ "$refresh_status" != "400" ]]; then
   exit 1
 fi
 echo "PASS: logout invalidates the refresh token"
+
+if [[ "$DB_URL" != */postgres ]]; then
+  echo "Unexpected local database URL; refusing to create a restore-test database" >&2
+  exit 1
+fi
+restore_db="2k_gestao_restore"
+restore_url="${DB_URL%/postgres}/$restore_db"
+pg_dump --format=custom --no-owner --no-acl --file="$tmp_dir/2k-gestao.dump" "$DB_URL"
+createdb --maintenance-db="$DB_URL" "$restore_db"
+pg_restore --exit-on-error --no-owner --no-acl --dbname="$restore_url" "$tmp_dir/2k-gestao.dump"
+restored_state="$(psql "$restore_url" -X -q -A -t -F '|' -v ON_ERROR_STOP=1 -c \
+  "select (select count(*) from supabase_migrations.schema_migrations), (select count(*) from auth.users), (select count(*) from public.profiles), (select count(*) from public.products), (select count(*) from public.cash_sessions where status = 'closed')")"
+if [[ "$restored_state" != "8|2|2|2|1" ]]; then
+  echo "Restored backup did not preserve migrations and representative data: $restored_state" >&2
+  exit 1
+fi
+dropdb --maintenance-db="$DB_URL" "$restore_db"
+echo "PASS: database dump restored into a separate database with migrations and representative data intact"

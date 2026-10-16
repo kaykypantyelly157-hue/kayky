@@ -1,0 +1,42 @@
+name: Validate 2K Gestão
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, develop]
+    paths:
+      - "2k-gestao/**"
+      - ".github/workflows/validate-2k-gestao.yml"
+  pull_request:
+    paths:
+      - "2k-gestao/**"
+      - ".github/workflows/validate-2k-gestao.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: 2k-gestao
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: 2k-gestao/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --progress=false
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Production build
+        run: npm run build

@@ -69,7 +69,7 @@ npx supabase status
 npx supabase db reset --local --no-seed
 ```
 
-`db reset` recria o banco local e aplica as migrations versionadas. Para executar a suíte integrada (provisiona usuários descartáveis, testa Auth/RLS, profile ausente/inativo, T1–T10, vendas/OS, operações concorrentes e dump/restore em banco separado), instale `psql`, `pg_dump`, `pg_restore`, `createdb`, `dropdb`, `curl`, `jq` e `openssl`, depois rode no Bash:
+`db reset` recria o banco local e aplica as migrations versionadas. Para executar a suíte integrada (provisiona usuários descartáveis, testa Auth/RLS, profile ausente/inativo, T1–T10, vendas/OS, operações concorrentes e dump/restore em banco separado), instale `psql`, `curl`, `jq` e `openssl`; as ferramentas de backup/restore são executadas dentro do container Postgres 17. Rode no Bash:
 
 ```bash
 bash supabase/tests/validate_local.sh

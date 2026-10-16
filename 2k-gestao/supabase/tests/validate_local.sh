@@ -405,15 +405,24 @@ if [[ "$DB_URL" != */postgres ]]; then
   exit 1
 fi
 restore_db="2k_gestao_restore"
-restore_url="${DB_URL%/postgres}/$restore_db"
-pg_dump --format=custom --no-owner --no-acl --file="$tmp_dir/2k-gestao.dump" "$DB_URL"
-createdb --maintenance-db="$DB_URL" "$restore_db"
-pg_restore --exit-on-error --no-owner --no-acl --dbname="$restore_url" "$tmp_dir/2k-gestao.dump"
-restored_state="$(psql "$restore_url" -X -q -A -t -F '|' -v ON_ERROR_STOP=1 -c \
+postgres_container="$(docker ps --filter 'name=supabase_db_' --format '{{.Names}}' | head -n 1)"
+if [[ -z "$postgres_container" ]]; then
+  echo "Could not locate the ephemeral Supabase PostgreSQL container for backup restore" >&2
+  exit 1
+fi
+docker exec "$postgres_container" pg_dump -U postgres -d postgres \
+  --format=custom --no-owner --no-acl --file=/tmp/2k-gestao.dump
+docker cp "$postgres_container:/tmp/2k-gestao.dump" "$tmp_dir/2k-gestao.dump"
+docker exec "$postgres_container" createdb -U postgres "$restore_db"
+docker cp "$tmp_dir/2k-gestao.dump" "$postgres_container:/tmp/2k-gestao.dump"
+docker exec "$postgres_container" pg_restore -U postgres --exit-on-error --no-owner --no-acl \
+  --dbname="$restore_db" /tmp/2k-gestao.dump
+restored_state="$(docker exec "$postgres_container" psql -U postgres -d "$restore_db" -X -q -A -t -F '|' -v ON_ERROR_STOP=1 -c \
   "select (select count(*) from supabase_migrations.schema_migrations), (select count(*) from auth.users), (select count(*) from public.profiles), (select count(*) from public.products), (select count(*) from public.cash_sessions where status = 'closed')")"
 if [[ "$restored_state" != "8|2|2|2|1" ]]; then
   echo "Restored backup did not preserve migrations and representative data: $restored_state" >&2
   exit 1
 fi
-dropdb --maintenance-db="$DB_URL" "$restore_db"
+docker exec "$postgres_container" dropdb -U postgres "$restore_db"
+docker exec "$postgres_container" rm -f /tmp/2k-gestao.dump
 echo "PASS: database dump restored into a separate database with migrations and representative data intact"

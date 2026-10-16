@@ -411,7 +411,9 @@ if [[ -z "$postgres_container" ]]; then
   exit 1
 fi
 docker exec "$postgres_container" pg_dump -U postgres -d postgres \
-  --format=custom --no-owner --no-acl --file=/tmp/2k-gestao.dump
+  --format=custom --no-owner --no-acl \
+  --schema=public --schema=auth --schema=supabase_migrations --schema=extensions \
+  --file=/tmp/2k-gestao.dump
 docker cp "$postgres_container:/tmp/2k-gestao.dump" "$tmp_dir/2k-gestao.dump"
 docker exec "$postgres_container" createdb -U postgres "$restore_db"
 docker cp "$tmp_dir/2k-gestao.dump" "$postgres_container:/tmp/2k-gestao.dump"
@@ -425,4 +427,4 @@ if [[ "$restored_state" != "8|2|2|2|1" ]]; then
 fi
 docker exec "$postgres_container" dropdb -U postgres "$restore_db"
 docker exec "$postgres_container" rm -f /tmp/2k-gestao.dump
-echo "PASS: database dump restored into a separate database with migrations and representative data intact"
+echo "PASS: application/Auth dump restored into a separate database with migrations and representative data intact"

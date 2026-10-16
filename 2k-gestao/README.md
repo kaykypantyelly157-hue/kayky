@@ -1,6 +1,6 @@
 # 2K Gestão v1
 
-Aplicação interna da 2K Celulares para produtos, estoque, clientes, vendas, caixa e ordens de serviço. A base foi reconstruída a partir das decisões e especificações disponíveis; os fontes históricos originais não estavam no arquivo de referência. A aplicação continua **parcial até que as migrations e os testes integrados sejam executados em um Supabase de teste**.
+Aplicação interna da 2K Celulares para produtos, estoque, clientes, vendas, caixa e ordens de serviço. A base foi reconstruída a partir das decisões e especificações disponíveis; os fontes históricos originais não estavam no arquivo de referência. Migrations, Auth/RLS, T1–T10, testes SQL das Fases 3–5 e concorrência passaram em Supabase efêmero no GitHub Actions. Deploy, teste em dispositivos e restauração de backup continuam pendentes; consulte `STATUS_EXECUCAO.md`.
 
 ## Stack e limites
 
